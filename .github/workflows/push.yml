@@ -91,9 +91,10 @@ jobs:
           fi
           echo "Waiting for build $BUILD_ID to complete and artifacts to be available..."
           for i in {1..30}; do
-            BUILD_JSON=$(eas build:view "$BUILD_ID" --json 2>/dev/null)
-            STATUS=$(echo "$BUILD_JSON" | jq -r '.status')
-            APK_URL=$(echo "$BUILD_JSON" | jq -r '.artifacts.buildUrl // .artifacts.applicationArchiveUrl // empty')
+            RAW_OUTPUT=$(eas build:view "$BUILD_ID" --json 2>&1)
+            BUILD_JSON=$(echo "$RAW_OUTPUT" | sed -n '/^{/,$p')
+            STATUS=$(echo "$BUILD_JSON" | jq -r '.status' 2>/dev/null || echo "UNKNOWN")
+            APK_URL=$(echo "$BUILD_JSON" | jq -r '.artifacts.buildUrl // .artifacts.applicationArchiveUrl // empty' 2>/dev/null || echo "")
             echo "Attempt $i: status=$STATUS, has_url=$([ -n "$APK_URL" ] && [ "$APK_URL" != "null" ] && echo "yes" || echo "no")"
             if [ "$STATUS" = "FINISHED" ] && [ -n "$APK_URL" ] && [ "$APK_URL" != "null" ]; then
               echo "Build ready, downloading APK..."
