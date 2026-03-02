@@ -7,7 +7,7 @@ on:
   workflow_dispatch: {}
 
 env:
-  EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+  EXPO_TOKEN: ${{ secrets.EXPO_TODO_2MAR }}
   CI: 1
 
 jobs:
@@ -41,7 +41,7 @@ jobs:
           eas-version: latest
           eas-cache: false
           packager: npm
-          token: ${{ secrets.EXPO_TOKEN }}
+          token: ${{ secrets.EXPO_TODO_2MAR }}
 
       - name: Verify project access
         run: eas project:info
