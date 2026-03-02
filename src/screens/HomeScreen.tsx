@@ -14,6 +14,7 @@ import NotesList from '../components/NotesList';
 import AddNoteModal from '../components/AddNoteModal';
 
 export default function HomeScreen() {
+  // JS-only change to verify OTA flow (no fingerprint change)
   const { user, signOut } = useAuth();
   const { notes, loading } = useNotes(user?.uid);
   const [modalVisible, setModalVisible] = useState(false);
