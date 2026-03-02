@@ -21,7 +21,7 @@ const config: ExpoConfig = {
     backgroundColor: '#ffffff',
   },
   runtimeVersion: {
-    policy: 'appVersion',
+    policy: 'fingerprint',
   },
   updates: {
     url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
