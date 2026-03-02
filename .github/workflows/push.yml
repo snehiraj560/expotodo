@@ -1,4 +1,4 @@
-name: Push - Fingerprint → OTA or Build
+name: Push - Test & Deploy (OTA)
 
 on:
   push:
@@ -11,7 +11,7 @@ env:
 
 jobs:
   deploy:
-    name: Deploy (Fingerprint → OTA or Build)
+    name: Deploy (OTA)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -34,10 +34,8 @@ jobs:
           packager: npm
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Deploy (fingerprint check → build if needed → OTA)
-        uses: expo/expo-github-action/continuous-deploy-fingerprint@main
-        with:
-          profile: preview
-          branch: preview
-          platform: android
-          environment: preview
+      - name: Verify project access
+        run: eas project:info
+
+      - name: Publish EAS Update (OTA)
+        run: eas update --branch preview --message "Deploy from CI (${{ github.sha }})" --non-interactive
