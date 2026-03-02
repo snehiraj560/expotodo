@@ -8,12 +8,21 @@ on:
 
 env:
   EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+  CI: 1
 
 jobs:
   deploy:
     name: Deploy (OTA)
     runs-on: ubuntu-latest
     steps:
+      - name: Check EXPO_TOKEN
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN secret is not set. Add it at https://github.com/${{ github.repository }}/settings/secrets/actions"
+            exit 1
+          fi
+          echo "EXPO_TOKEN is set"
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -38,4 +47,6 @@ jobs:
         run: eas project:info
 
       - name: Publish EAS Update (OTA)
-        run: eas update --branch preview --environment preview --message "Deploy from CI (${{ github.sha }})" --non-interactive
+        env:
+          CI: 1
+        run: eas update --branch development --environment development --message "Deploy from CI (${{ github.sha }})"
