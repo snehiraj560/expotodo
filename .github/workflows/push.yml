@@ -1,7 +1,10 @@
-name: Push - Fingerprint → OTA or Build
+name: Push - Fingerprint → OTA or Build + Appium
 
 on:
   push:
+    branches:
+      - master
+  pull_request:
     branches:
       - master
   workflow_dispatch: {}
@@ -14,6 +17,9 @@ jobs:
   deploy:
     name: Deploy (Fingerprint → OTA or Build)
     runs-on: ubuntu-latest
+    outputs:
+      android_build_id: ${{ steps.deploy.outputs.android-build-id }}
+      did_start_new_build: ${{ steps.deploy.outputs.android-did-start-new-build }}
     steps:
       - name: Check EXPO_TOKEN
         run: |
@@ -44,9 +50,66 @@ jobs:
           token: ${{ secrets.EXPO_TODO_2MAR }}
 
       - name: Deploy (fingerprint check → build if needed → OTA)
+        id: deploy
         uses: expo/expo-github-action/continuous-deploy-fingerprint@main
         with:
           profile: development
           branch: development
           platform: android
           environment: development
+
+  appium:
+    name: Appium E2E (on new build)
+    needs: deploy
+    if: needs.deploy.outputs.did_start_new_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@main
+        with:
+          eas-version: latest
+          eas-cache: false
+          packager: npm
+          token: ${{ secrets.EXPO_TODO_2MAR }}
+
+      - name: Download APK from EAS
+        env:
+          BUILD_ID: ${{ needs.deploy.outputs.android_build_id }}
+        run: |
+          if [ -z "$BUILD_ID" ]; then
+            echo "::error::No build ID from deploy step"
+            exit 1
+          fi
+          echo "Downloading APK for build $BUILD_ID"
+          BUILD_JSON=$(eas build:view "$BUILD_ID" --non-interactive --json 2>/dev/null)
+          APK_URL=$(echo "$BUILD_JSON" | jq -r '.artifacts.buildUrl // .artifacts.applicationArchiveUrl // empty')
+          if [ -z "$APK_URL" ] || [ "$APK_URL" = "null" ]; then
+            echo "::error::Could not get APK URL from build $BUILD_ID"
+            exit 1
+          fi
+          curl -L -o app.apk "$APK_URL"
+          ls -la app.apk
+          echo "APK_PATH=$(pwd)/app.apk" >> $GITHUB_ENV
+
+      - name: Run Appium E2E tests
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          script: |
+            adb install -r $GITHUB_WORKSPACE/app.apk
+            export APK_PATH=$GITHUB_WORKSPACE/app.apk
+            export E2E_TEST_EMAIL=${{ secrets.E2E_TEST_EMAIL }}
+            export E2E_TEST_PASSWORD=${{ secrets.E2E_TEST_PASSWORD }}
+            cd $GITHUB_WORKSPACE && npm run e2e
