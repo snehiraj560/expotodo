@@ -92,16 +92,28 @@ jobs:
             echo "::error::No build ID from deploy step"
             exit 1
           fi
-          echo "Downloading APK for build $BUILD_ID"
-          BUILD_JSON=$(eas build:view "$BUILD_ID" --non-interactive --json 2>/dev/null)
-          APK_URL=$(echo "$BUILD_JSON" | jq -r '.artifacts.buildUrl // .artifacts.applicationArchiveUrl // empty')
-          if [ -z "$APK_URL" ] || [ "$APK_URL" = "null" ]; then
-            echo "::error::Could not get APK URL from build $BUILD_ID"
-            exit 1
-          fi
-          curl -L -o app.apk "$APK_URL"
-          ls -la app.apk
-          echo "APK_PATH=$(pwd)/app.apk" >> $GITHUB_ENV
+          echo "Waiting for build $BUILD_ID to complete and artifacts to be available..."
+          for i in {1..30}; do
+            BUILD_JSON=$(eas build:view "$BUILD_ID" --json 2>/dev/null)
+            STATUS=$(echo "$BUILD_JSON" | jq -r '.status')
+            APK_URL=$(echo "$BUILD_JSON" | jq -r '.artifacts.buildUrl // .artifacts.applicationArchiveUrl // empty')
+            echo "Attempt $i: status=$STATUS, has_url=$([ -n "$APK_URL" ] && [ "$APK_URL" != "null" ] && echo "yes" || echo "no")"
+            if [ "$STATUS" = "FINISHED" ] && [ -n "$APK_URL" ] && [ "$APK_URL" != "null" ]; then
+              echo "Build ready, downloading APK..."
+              curl -L -o app.apk "$APK_URL"
+              ls -la app.apk
+              echo "APK_PATH=$(pwd)/app.apk" >> $GITHUB_ENV
+              exit 0
+            fi
+            if [ "$STATUS" = "CANCELED" ] || [ "$STATUS" = "ERROR" ]; then
+              echo "::error::Build failed with status $STATUS"
+              exit 1
+            fi
+            echo "Waiting 60s before retry..."
+            sleep 60
+          done
+          echo "::error::Timed out waiting for build artifacts"
+          exit 1
 
       - name: Run Appium E2E tests
         uses: ReactiveCircus/android-emulator-runner@v2
