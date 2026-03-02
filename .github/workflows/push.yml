@@ -38,4 +38,4 @@ jobs:
         run: eas project:info
 
       - name: Publish EAS Update (OTA)
-        run: eas update --branch preview --message "Deploy from CI (${{ github.sha }})" --non-interactive
+        run: eas update --branch preview --environment preview --message "Deploy from CI (${{ github.sha }})" --non-interactive
