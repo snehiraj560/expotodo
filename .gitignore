@@ -3,6 +3,9 @@
 # Cursor rules (local context - kept out of repo)
 .cursor/
 
+# Local analysis notes (not for repo)
+docs/ANALYSIS_FINGERPRINT_REPACK.md
+
 # dependencies
 node_modules/
 
