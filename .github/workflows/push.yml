@@ -1,4 +1,4 @@
-name: Push - Fingerprint → OTA or Build + Appium
+name: Push - Fingerprint → OTA or Build + Download APK
 
 on:
   push:
@@ -58,8 +58,8 @@ jobs:
           platform: android
           environment: development
 
-  appium:
-    name: Appium E2E (on new build)
+  download-apk:
+    name: Download APK (on new build)
     needs: deploy
     if: needs.deploy.outputs.did_start_new_build == 'true'
     runs-on: ubuntu-latest
@@ -72,9 +72,6 @@ jobs:
         with:
           node-version: 20.x
           cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
 
       - name: Setup EAS
         uses: expo/expo-github-action@main
@@ -102,7 +99,6 @@ jobs:
               echo "Build ready, downloading APK..."
               curl -L -o app.apk "$APK_URL"
               ls -la app.apk
-              echo "APK_PATH=$(pwd)/app.apk" >> $GITHUB_ENV
               exit 0
             fi
             if [ "$STATUS" = "CANCELED" ] || [ "$STATUS" = "ERROR" ]; then
@@ -115,13 +111,9 @@ jobs:
           echo "::error::Timed out waiting for build artifacts"
           exit 1
 
-      - name: Run Appium E2E tests
-        uses: ReactiveCircus/android-emulator-runner@v2
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
         with:
-          api-level: 34
-          script: |
-            adb install -r $GITHUB_WORKSPACE/app.apk
-            export APK_PATH=$GITHUB_WORKSPACE/app.apk
-            export E2E_TEST_EMAIL=${{ secrets.E2E_TEST_EMAIL }}
-            export E2E_TEST_PASSWORD=${{ secrets.E2E_TEST_PASSWORD }}
-            cd $GITHUB_WORKSPACE && npm run e2e
+          name: expotodo-apk
+          path: app.apk
+          retention-days: 7
