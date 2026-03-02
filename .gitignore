@@ -51,6 +51,10 @@ coverage/
 **/appium-reports/
 **/test-results/
 **/screenshots/
+**/allure-results/
+**/allure-report/
+e2e/reports/
+e2e/logs/
 **/*.log
 wdio-*.log
 

@@ -75,6 +75,8 @@ export default function LoginScreen({ onSignUpPress }: Readonly<LoginScreenProps
         </TouchableOpacity>
         <TouchableOpacity
           testID="signup-nav-button"
+          accessibilityLabel="signup-nav-button"
+          accessible
           style={styles.linkButton}
           onPress={onSignUpPress}
           disabled={loading}
