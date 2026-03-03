@@ -36,7 +36,7 @@ jobs:
       - name: Compute Android fingerprint via CLI
         id: fingerprint
         run: |
-          FINGERPRINT_JSON=$(npx expo-fingerprint fingerprint:generate --platform android --json)
+          FINGERPRINT_JSON=$(npx @expo/fingerprint fingerprint:generate --platform android --json)
           ANDROID_FINGERPRINT=$(echo "$FINGERPRINT_JSON" | jq -r '.hash')
           if [ -z "$ANDROID_FINGERPRINT" ] || [ "$ANDROID_FINGERPRINT" = "null" ]; then
             echo "::error::Failed to compute Android fingerprint"
