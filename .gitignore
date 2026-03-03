@@ -6,6 +6,9 @@
 # Local analysis notes (not for repo)
 docs/ANALYSIS_FINGERPRINT_REPACK.md
 
+# Workflow backups (local only)
+.github/workflows/*.backup
+
 # dependencies
 node_modules/
 
