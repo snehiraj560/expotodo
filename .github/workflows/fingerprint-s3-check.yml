@@ -144,7 +144,9 @@ jobs:
       - name: Run Appium E2E tests on emulator
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          api-level: 30
+          target: google_apis
+          arch: x86_64
           script: |
             adb install -r $GITHUB_WORKSPACE/app.apk
             export APK_PATH=$GITHUB_WORKSPACE/app.apk
