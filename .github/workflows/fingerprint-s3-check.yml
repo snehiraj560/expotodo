@@ -10,6 +10,7 @@ on:
   workflow_dispatch: {}
 
 env:
+  # Shared environment (Expo + AWS)
   EXPO_TOKEN: ${{ secrets.EXPO_TODO_2MAR }}
   CI: 1
   AWS_REGION: ap-south-1
@@ -17,20 +18,23 @@ env:
   S3_PREFIX: android-build
 
 jobs:
+  # Job A: compute fingerprint and verify that an APK exists in S3
   fingerprint-and-check-s3:
     name: Fingerprint & verify APK in S3
     runs-on: ubuntu-latest
+    outputs:
+      android_fingerprint: ${{ steps.fingerprint.outputs.android_fingerprint }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node (for CLI + tests)
         uses: actions/setup-node@v4
         with:
           node-version: 20.x
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install dependencies (npm ci)
         run: npm ci
 
       - name: Compute Android fingerprint via CLI
@@ -44,7 +48,7 @@ jobs:
           fi
           echo "android_fingerprint=$ANDROID_FINGERPRINT" >> $GITHUB_OUTPUT
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (read/write to S3)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -94,4 +98,58 @@ jobs:
 
           # Fail the job so the missing build is visible in PR checks
           exit 1
+
+  # Job B: if APK exists, download it and run Appium E2E tests on CI
+  appium-e2e:
+    name: Appium E2E (when APK exists in S3)
+    needs: fingerprint-and-check-s3
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node (for Appium tests)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+
+      - name: Install dependencies (npm ci)
+        run: npm ci
+
+      - name: Configure AWS credentials (download APK from S3)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download APK from S3 for this fingerprint
+        env:
+          ANDROID_FINGERPRINT: ${{ needs.fingerprint-and-check-s3.outputs.android_fingerprint }}
+        run: |
+          if [ -z "$ANDROID_FINGERPRINT" ]; then
+            echo "::error::Android fingerprint output is empty from previous job."
+            exit 1
+          fi
+
+          APK_KEY="$S3_PREFIX/$ANDROID_FINGERPRINT/app.apk"
+          APK_URI="s3://$S3_BUCKET/$APK_KEY"
+
+          echo "Downloading APK for fingerprint: $ANDROID_FINGERPRINT"
+          echo "From: $APK_URI"
+          aws s3 cp "$APK_URI" app.apk
+          ls -la app.apk
+
+      - name: Run Appium E2E tests on emulator
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          script: |
+            adb install -r $GITHUB_WORKSPACE/app.apk
+            export APK_PATH=$GITHUB_WORKSPACE/app.apk
+            export E2E_TEST_EMAIL=${{ secrets.E2E_TEST_EMAIL }}
+            export E2E_TEST_PASSWORD=${{ secrets.E2E_TEST_PASSWORD }}
+            cd $GITHUB_WORKSPACE
+            npm run e2e
 
