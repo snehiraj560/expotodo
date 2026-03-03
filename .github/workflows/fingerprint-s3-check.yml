@@ -30,21 +30,19 @@ jobs:
           node-version: 20.x
           cache: 'npm'
 
-      - name: Setup EAS (for fingerprint)
-        uses: expo/expo-github-action@main
-        with:
-          eas-version: latest
-          eas-cache: false
-          packager: npm
-          token: ${{ secrets.EXPO_TODO_2MAR }}
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Get fingerprint info (no build)
+      - name: Compute Android fingerprint via CLI
         id: fingerprint
-        uses: expo/expo-github-action/continuous-deploy-fingerprint-info@main
-        with:
-          profile: development
-          platform: android
-          environment: development
+        run: |
+          FINGERPRINT_JSON=$(npx expo-fingerprint fingerprint:generate --platform android --json)
+          ANDROID_FINGERPRINT=$(echo "$FINGERPRINT_JSON" | jq -r '.hash')
+          if [ -z "$ANDROID_FINGERPRINT" ] || [ "$ANDROID_FINGERPRINT" = "null" ]; then
+            echo "::error::Failed to compute Android fingerprint"
+            exit 1
+          fi
+          echo "android_fingerprint=$ANDROID_FINGERPRINT" >> $GITHUB_OUTPUT
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -55,7 +53,7 @@ jobs:
 
       - name: Check S3 for APK matching fingerprint
         env:
-          ANDROID_FINGERPRINT: ${{ steps.fingerprint.outputs.android-fingerprint }}
+          ANDROID_FINGERPRINT: ${{ steps.fingerprint.outputs.android_fingerprint }}
         run: |
           if [ -z "$ANDROID_FINGERPRINT" ]; then
             echo "::error::Android fingerprint output is empty. Check fingerprint step."

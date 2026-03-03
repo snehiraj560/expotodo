@@ -33,6 +33,7 @@
     "react-native-screens": "^4.24.0"
   },
   "devDependencies": {
+    "@expo/fingerprint": "^0.15.4",
     "@types/react": "~19.2.2",
     "@wdio/appium-service": "^9.24.0",
     "@wdio/cli": "^9.24.0",
