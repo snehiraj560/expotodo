@@ -144,10 +144,22 @@ jobs:
       - name: Run Appium E2E tests on emulator
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
-          api-level: 30
+          api-level: 29
           target: google_apis
-          arch: x86_64
+          arch: x86
           script: |
+            # Wait for emulator to be ready
+            adb wait-for-device
+            # Some images need extra time to report boot completed
+            bootcomplete=""
+            retries=0
+            while [ "$bootcomplete" != "1" ] && [ $retries -lt 30 ]; do
+              bootcomplete=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+              echo "Waiting for emulator to boot... attempt $retries, boot_completed=$bootcomplete"
+              sleep 5
+              retries=$((retries+1))
+            done
+
             adb install -r $GITHUB_WORKSPACE/app.apk
             export APK_PATH=$GITHUB_WORKSPACE/app.apk
             export E2E_TEST_EMAIL=${{ secrets.E2E_TEST_EMAIL }}
