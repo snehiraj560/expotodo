@@ -1,0 +1,99 @@
+name: Fingerprint → S3 build presence check
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+  workflow_dispatch: {}
+
+env:
+  EXPO_TOKEN: ${{ secrets.EXPO_TODO_2MAR }}
+  CI: 1
+  AWS_REGION: ap-south-1
+  S3_BUCKET: expo-todo-poc
+  S3_PREFIX: android-build
+
+jobs:
+  fingerprint-and-check-s3:
+    name: Fingerprint & verify APK in S3
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+
+      - name: Setup EAS (for fingerprint)
+        uses: expo/expo-github-action@main
+        with:
+          eas-version: latest
+          eas-cache: false
+          packager: npm
+          token: ${{ secrets.EXPO_TODO_2MAR }}
+
+      - name: Get fingerprint info (no build)
+        id: fingerprint
+        uses: expo/expo-github-action/continuous-deploy-fingerprint-info@main
+        with:
+          profile: development
+          platform: android
+          environment: development
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check S3 for APK matching fingerprint
+        env:
+          ANDROID_FINGERPRINT: ${{ steps.fingerprint.outputs.android-fingerprint }}
+        run: |
+          if [ -z "$ANDROID_FINGERPRINT" ]; then
+            echo "::error::Android fingerprint output is empty. Check fingerprint step."
+            exit 1
+          fi
+
+          APK_KEY="$S3_PREFIX/$ANDROID_FINGERPRINT/app.apk"
+          APK_URI="s3://$S3_BUCKET/$APK_KEY"
+
+          echo "Computed Android fingerprint: $ANDROID_FINGERPRINT"
+          echo "Expected APK location: $APK_URI"
+
+          echo "Checking if APK exists in S3..."
+          if aws s3 ls "$APK_URI" > /dev/null 2>&1; then
+            echo "✅ APK already exists at $APK_URI"
+            exit 0
+          fi
+
+          echo "❌ No APK found for this fingerprint."
+          echo "Creating prefix (\"folder\") for this fingerprint so a developer can upload the build..."
+
+          # Create an empty object to materialize the prefix in UIs
+          aws s3api put-object --bucket "$S3_BUCKET" --key "$S3_PREFIX/$ANDROID_FINGERPRINT/"
+
+          echo ""
+          echo "=============================================================="
+          echo "Missing APK for fingerprint: $ANDROID_FINGERPRINT"
+          echo ""
+          echo "1. Build the APK locally for this commit (example):"
+          echo "   - Using Gradle / Android Studio, or"
+          echo "   - Using EAS local build: eas build --profile preview --platform android --local"
+          echo ""
+          echo "2. Upload the resulting APK to:"
+          echo "   $APK_URI"
+          echo ""
+          echo "After uploading, re-run this workflow (from the Actions tab) or push again."
+          echo "=============================================================="
+
+          # Fail the job so the missing build is visible in PR checks
+          exit 1
+
