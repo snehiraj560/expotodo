@@ -28,6 +28,7 @@ export const config: Options.Testrunner = {
   capabilities: [
     {
       platformName: 'Android',
+      'appium:app': BROWSERSTACK_APP_ID,
       'appium:appPackage': 'com.snehi_raj.expotodo',
       'appium:appActivity': '.MainActivity',
       'appium:automationName': 'UiAutomator2',
@@ -56,7 +57,6 @@ export const config: Options.Testrunner = {
     [
       'browserstack',
       {
-        app: BROWSERSTACK_APP_ID,
         browserstackLocal: false,
         testObservability: true,
         testObservabilityOptions: {
