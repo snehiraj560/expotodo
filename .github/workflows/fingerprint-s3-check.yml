@@ -141,12 +141,11 @@ jobs:
           aws s3 cp "$APK_URI" app.apk
           ls -la app.apk
 
-      - name: Upload APK to BrowserStack and run E2E
+      - name: Upload APK to BrowserStack
+        id: upload_to_browserstack
         env:
           BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
           BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
-          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
-          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
         run: |
           if [ -z "$BROWSERSTACK_USERNAME" ] || [ -z "$BROWSERSTACK_ACCESS_KEY" ]; then
             echo "::error::BROWSERSTACK_USERNAME and BROWSERSTACK_ACCESS_KEY must be set in repo secrets."
@@ -163,8 +162,16 @@ jobs:
             exit 1
           fi
           echo "Uploaded app_url: $APP_URL"
-          echo "BROWSERSTACK_APP_ID=$APP_URL" >> $GITHUB_ENV
+          echo "browserstack_app_id=$APP_URL" >> "$GITHUB_OUTPUT"
 
-          echo "Running E2E tests on BrowserStack..."
+      - name: Run E2E tests on BrowserStack
+        env:
+          BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+          BROWSERSTACK_APP_ID: ${{ steps.upload_to_browserstack.outputs.browserstack_app_id }}
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+        run: |
+          echo "Running E2E tests on BrowserStack with app id: $BROWSERSTACK_APP_ID"
           npm run e2e:browserstack
 
