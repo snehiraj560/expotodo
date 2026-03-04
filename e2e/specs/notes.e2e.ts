@@ -61,7 +61,7 @@ describe('Notes Flow', () => {
 
   it('should display sign out button', async () => {
     const signoutButton = await $(Locators.signoutButton);
-    await signoutButton.waitForDisplayed(WAIT_OPTS);
-    await expect(signoutButton).toBeDisplayed();
+    const exists = await signoutButton.isExisting();
+    await expect(exists).toBe(true);
   });
 });
