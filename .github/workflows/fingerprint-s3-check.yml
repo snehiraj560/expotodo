@@ -141,29 +141,30 @@ jobs:
           aws s3 cp "$APK_URI" app.apk
           ls -la app.apk
 
-      - name: Run Appium E2E tests on emulator
-        uses: ReactiveCircus/android-emulator-runner@v2
-        with:
-          api-level: 29
-          target: google_apis
-          arch: x86
-          script: |
-            # Wait for emulator to be ready
-            adb wait-for-device
-            # Some images need extra time to report boot completed
-            bootcomplete=""
-            retries=0
-            while [ "$bootcomplete" != "1" ] && [ $retries -lt 30 ]; do
-              bootcomplete=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-              echo "Waiting for emulator to boot... attempt $retries, boot_completed=$bootcomplete"
-              sleep 5
-              retries=$((retries+1))
-            done
+      - name: Upload APK to BrowserStack and run E2E
+        env:
+          BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+        run: |
+          if [ -z "$BROWSERSTACK_USERNAME" ] || [ -z "$BROWSERSTACK_ACCESS_KEY" ]; then
+            echo "::error::BROWSERSTACK_USERNAME and BROWSERSTACK_ACCESS_KEY must be set in repo secrets."
+            exit 1
+          fi
 
-            adb install -r $GITHUB_WORKSPACE/app.apk
-            export APK_PATH=$GITHUB_WORKSPACE/app.apk
-            export E2E_TEST_EMAIL=${{ secrets.E2E_TEST_EMAIL }}
-            export E2E_TEST_PASSWORD=${{ secrets.E2E_TEST_PASSWORD }}
-            cd $GITHUB_WORKSPACE
-            npm run e2e
+          echo "Uploading APK to BrowserStack App Automate..."
+          UPLOAD_RESPONSE=$(curl -s -u "$BROWSERSTACK_USERNAME:$BROWSERSTACK_ACCESS_KEY" \
+            -X POST "https://api-cloud.browserstack.com/app-automate/upload" \
+            -F "file=@app.apk")
+          APP_URL=$(echo "$UPLOAD_RESPONSE" | jq -r '.app_url // empty')
+          if [ -z "$APP_URL" ]; then
+            echo "::error::BrowserStack upload failed. Response: $UPLOAD_RESPONSE"
+            exit 1
+          fi
+          echo "Uploaded app_url: $APP_URL"
+          echo "BROWSERSTACK_APP_ID=$APP_URL" >> $GITHUB_ENV
+
+          echo "Running E2E tests on BrowserStack..."
+          npm run e2e:browserstack
 
